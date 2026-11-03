@@ -6,16 +6,17 @@ h1{font-size:20px;margin:0 0 2px;letter-spacing:2px}h1 b{color:#0b3d91}.sub{colo
 label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}label i{font-weight:400;color:var(--tg-theme-hint-color,#888);font-style:normal}
 input,select{width:100%;padding:11px;font-size:16px;border:1px solid #ccc;border-radius:10px;background:var(--tg-theme-secondary-bg-color,#f6f6f6);color:inherit}
 .err{border-color:#d33}.msg{color:#d33;font-size:12px;min-height:14px}.row{display:flex;gap:10px}.row>div{flex:1}
-.chk{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:15px}.chk input{width:20px;height:20px}
+.flt{margin-bottom:6px;padding:8px 11px;font-size:15px}.otro{display:none;margin-top:6px}.chk{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:15px}.chk input{width:20px;height:20px}
 #send{display:none;width:100%;margin-top:20px;padding:14px;font-size:16px;border:0;border-radius:10px;background:#0b3d91;color:#fff}
 </style></head><body>
 <h1><b>ZHARO</b></h1><div class="sub">Cargar cliente para evaluar</div>
 <label>Agencia</label><input id="agencia" autocomplete="off"><div class="msg" id="m_agencia"></div>
 <label>DNI</label><input id="dni" inputmode="numeric" maxlength="8"><div class="msg" id="m_dni"></div>
 <label>Nombre y apellido</label><input id="nombre" autocomplete="off"><div class="msg" id="m_nombre"></div>
-<div class="row"><div><label>Marca</label><input id="marca"><div class="msg" id="m_marca"></div></div><div><label>Modelo</label><input id="modelo"><div class="msg" id="m_modelo"></div></div></div>
-<label>Versión <i>(opcional)</i></label><input id="version">
 <label>Año</label><select id="anio"><option value="">Elegí el año</option></select><div class="msg" id="m_anio"></div>
+<label>Marca</label><input id="f_marca" class="flt" placeholder="🔎 Buscar marca" autocomplete="off"><select id="s_marca" disabled><option value="">Primero elegí el año</option></select><input id="marca" class="otro" placeholder="Escribí la marca"><div class="msg" id="m_marca"></div>
+<label>Modelo</label><input id="f_modelo" class="flt" placeholder="🔎 Buscar modelo" autocomplete="off"><select id="s_modelo" disabled><option value="">Primero elegí la marca</option></select><input id="modelo" class="otro" placeholder="Escribí el modelo"><div class="msg" id="m_modelo"></div>
+<label>Versión</label><input id="f_version" class="flt" placeholder="🔎 Buscar versión (ej: highline, 1.6)" autocomplete="off"><select id="s_version" disabled><option value="">Primero elegí el modelo</option></select><input id="version" class="otro" placeholder="Escribí la versión"><div class="msg" id="m_version"></div>
 <label>Neto a solicitar <i>(opcional)</i></label><input id="neto" inputmode="numeric" placeholder="$ 0">
 <div class="chk"><input type="checkbox" id="max" checked><span>Máximo</span></div><div class="msg" id="m_neto"></div>
 <label>Plazo (meses)</label><select id="plazo"><option value="">Elegí</option><option>12</option><option>18</option><option>24</option><option>36</option><option>48</option><option>60</option></select><div class="msg" id="m_plazo"></div>
@@ -23,15 +24,30 @@ input,select{width:100%;padding:11px;font-size:16px;border:1px solid #ccc;border
 <script>
 const tg=window.Telegram&&Telegram.WebApp;const $=i=>document.getElementById(i);
 const y=new Date().getFullYear(),s=$("anio");s.add(new Option("0km","0km"));for(let a=y;a>=2011;a--)s.add(new Option(a,a));
+const OTRO="__otro__",CAT={};let cur={};
+const lab={marca:"No está la marca",modelo:"No está el modelo",version:"No está mi versión"};
+function fill(k,items,ph){const sel=$("s_"+k),f=$("f_"+k).value.trim().toUpperCase().split(/\s+/).filter(Boolean),prev=sel.value;sel.innerHTML="";sel.add(new Option(ph,""));
+for(const it of items)if(f.every(w=>it.toUpperCase().includes(w)))sel.add(new Option(it,it));sel.add(new Option("✏️ "+lab[k]+" (escribir)",OTRO));sel.disabled=false;if([...sel.options].some(o=>o.value===prev))sel.value=prev}
+function reset(k,ph){const sel=$("s_"+k);sel.innerHTML="";sel.add(new Option(ph,""));sel.disabled=true;$("f_"+k).value="";$(k).value="";$(k).style.display="none"}
+function otro(k){const o=$("s_"+k).value===OTRO;$(k).style.display=o?"block":"none";if(!o)$(k).value=$("s_"+k).value;else{$(k).value="";$(k).focus()}}
+const L={marca:()=>Object.keys(cur),modelo:()=>Object.keys(cur[$("marca").value]||{}),version:()=>(cur[$("marca").value]||{})[$("modelo").value]||[]};
+const PH={marca:"Elegí la marca",modelo:"Elegí el modelo",version:"Elegí la versión"};
+async function loadYear(){reset("marca","Cargando...");reset("modelo","Primero elegí la marca");reset("version","Primero elegí el modelo");const a=$("anio").value;if(!a){reset("marca","Primero elegí el año");return}
+try{CAT[a]=CAT[a]||await (await fetch("autos/"+a+".json?v=1")).json();cur=CAT[a]}catch(e){cur={}}fill("marca",L.marca(),PH.marca);if(!Object.keys(cur).length){$("s_marca").value=OTRO;otro("marca")}}
+$("anio").onchange=loadYear;
+for(const k of["marca","modelo","version"])$("f_"+k).oninput=()=>{if(!$("s_"+k).disabled)fill(k,L[k](),PH[k])};
+$("s_marca").onchange=()=>{otro("marca");reset("modelo","Elegí el modelo");reset("version","Primero elegí el modelo");if($("s_marca").value===OTRO){$("s_modelo").innerHTML="";$("s_modelo").add(new Option("✏️ Escribir",OTRO));$("s_modelo").value=OTRO;otro("modelo");$("s_version").innerHTML="";$("s_version").add(new Option("✏️ Escribir",OTRO));$("s_version").value=OTRO;otro("version")}else if($("marca").value)fill("modelo",L.modelo(),PH.modelo)};
+$("s_modelo").onchange=()=>{otro("modelo");reset("version","Elegí la versión");if($("s_modelo").value===OTRO){$("s_version").innerHTML="";$("s_version").add(new Option("✏️ Escribir",OTRO));$("s_version").value=OTRO;otro("version")}else if($("modelo").value)fill("version",L.version(),PH.version)};
+$("s_version").onchange=()=>otro("version");
 $("dni").oninput=e=>e.target.value=e.target.value.replace(/\D/g,"").slice(0,8);
 $("neto").oninput=e=>{const d=e.target.value.replace(/\D/g,"");e.target.value=d?Number(d).toLocaleString("es-AR"):"";$("max").checked=!d};
 $("max").onchange=e=>{if(e.target.checked)$("neto").value=""};
-function v(){let ok=true;const req=[["agencia","Completá la agencia"],["nombre","Completá nombre y apellido"],["marca","Completá la marca"],["modelo","Completá el modelo"],["anio","Elegí el año"]];
+function v(){let ok=true;const req=[["agencia","Completá la agencia"],["nombre","Completá nombre y apellido"],["marca","Completá la marca"],["modelo","Completá el modelo"],["version","Elegí o escribí la versión"],["anio","Elegí el año"]];
 for(const[k,t]of req){const bad=!$(k).value.trim();$(k).classList.toggle("err",bad);$("m_"+k).textContent=bad?t:"";if(bad)ok=false}
 const d=$("dni").value,bd=!/^\d{7,8}$/.test(d);$("dni").classList.toggle("err",bd);$("m_dni").textContent=bd?"El DNI tiene que tener 7 u 8 números":"";if(bd)ok=false;
 const n=$("neto").value.replace(/\D/g,""),bn=!n&&!$("max").checked;$("m_neto").textContent=bn?"Poné un monto o marcá Máximo":"";if(bn)ok=false;const pz=!$("plazo").value;$("m_plazo").textContent=pz?"Elegí un plazo":"";if(pz)ok=false;return ok}
 function send(){if(!v()){tg&&tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred("error");return}
-const n=$("neto").value.replace(/\D/g,"");const data={plazo:$("plazo").value,agencia:$("agencia").value.trim(),dni:$("dni").value,nombre:$("nombre").value.trim(),marca:$("marca").value.trim(),modelo:$("modelo").value.trim(),version:$("version").value.trim(),anio:$("anio").value,neto:($("max").checked||!n)?"máximo":Number(n)};
+const n=$("neto").value.replace(/\D/g,"");const data={plazo:$("plazo").value,agencia:$("agencia").value.trim(),dni:$("dni").value,nombre:$("nombre").value.trim(),marca:$("marca").value.trim(),modelo:$("modelo").value.trim(),version:$("version").value.trim(),anio:$("anio").value,version_catalogo:$("s_version").value!==OTRO&&!!$("s_version").value,neto:($("max").checked||!n)?"máximo":Number(n)};
 if(tg&&tg.sendData&&tg.initData!==undefined&&tg.platform!=="unknown"){tg.sendData(JSON.stringify(data));tg.close()}else alert(JSON.stringify(data))}
 if(tg&&tg.MainButton&&tg.platform!=="unknown"){tg.ready();tg.expand();tg.MainButton.setParams({text:"Enviar",color:"#0b3d91",text_color:"#ffffff"});tg.MainButton.onClick(send);tg.MainButton.show()}else{$("send").style.display="block"}
 $("send").onclick=send;
